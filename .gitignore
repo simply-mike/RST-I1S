@@ -1,0 +1,16 @@
+.venv/
+venv/
+env/
+
+__pycache__/
+*.py[cod]
+*.$py.class
+
+temp/
+tmp/
+*.tmp
+*.log
+
+.env
+.env.local
+*.secret
