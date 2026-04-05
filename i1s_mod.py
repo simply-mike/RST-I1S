@@ -1,6 +1,6 @@
 from steiner_types import Node, Edge
 from geometry import hanan_candidates
-from mst import prim_mst
+from mst import prim_mst, degrees_from_mst_edges
 from i1s_base import run_i1s_base
 
 
@@ -29,6 +29,28 @@ def _rebuild_edges(nodes: list[Node]) -> tuple[list[Edge], int]:
     return edges, total
 
 
+def _prune_steiner_points(terminals: list[Node], steiners: list[Node]) -> list[Node]:
+    changed = True
+    current = steiners[:]
+
+    while changed:
+        changed = False
+        nodes = terminals + current
+        mst_edges, _ = prim_mst(nodes)
+        deg = degrees_from_mst_edges(nodes, mst_edges)
+
+        filtered = []
+        for s in current:
+            if deg.get(s.id, 0) >= 3:
+                filtered.append(s)
+            else:
+                changed = True
+
+        current = filtered
+
+    return current
+
+
 def _local_refine(nodes: list[Node]) -> list[Node]:
     terminals, steiners = _extract_steiners(nodes)
     if not steiners:
@@ -50,10 +72,10 @@ def _local_refine(nodes: list[Node]) -> list[Node]:
             best_len = current_best
 
             for cand in candidates:
-                # preserve id of current steiner point
                 moved = Node(id=s.id, x=cand.x, y=cand.y, type="s")
                 trial_nodes = terminals + steiners[:idx] + [moved] + steiners[idx + 1 :]
                 trial_len = _total_len(trial_nodes)
+
                 if trial_len < best_len:
                     best_len = trial_len
                     best_node = moved
@@ -69,6 +91,12 @@ def _local_refine(nodes: list[Node]) -> list[Node]:
 
 def run_i1s_modified(terminals: list[Node]) -> tuple[list[Node], list[Edge], int]:
     base_nodes, _, _ = run_i1s_base(terminals)
+
     refined_nodes = _local_refine(base_nodes)
-    edges, total = _rebuild_edges(refined_nodes)
-    return refined_nodes, edges, total
+    refined_terminals, refined_steiners = _extract_steiners(refined_nodes)
+
+    pruned_steiners = _prune_steiner_points(refined_terminals, refined_steiners)
+    final_nodes = refined_terminals + pruned_steiners
+
+    edges, total = _rebuild_edges(final_nodes)
+    return final_nodes, edges, total
