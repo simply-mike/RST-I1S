@@ -61,7 +61,6 @@ def _best_candidate(terminals: list[Node], steiners: list[Node]) -> tuple[Node |
             best = cand
             best_gain = gain
         elif gain == best_gain and gain > 0 and best is not None:
-            # deterministic tie-break
             if (cand.x, cand.y, cand.id) < (best.x, best.y, best.id):
                 best = cand
 

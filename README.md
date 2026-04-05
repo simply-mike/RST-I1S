@@ -65,24 +65,26 @@ The output is written to:
 
    * MST over P ∪ S
 
----
 
 ### Modified Algorithm
 
-After running the base algorithm:
+The modified version is quality-oriented.
 
-1. Local refinement:
+Instead of selecting the next Steiner point only by immediate gain, it uses
+a two-step look-ahead strategy:
 
-   * each Steiner point is moved across candidate positions on the Hanan grid
-   * a move is accepted if it reduces total tree length
+1. evaluate candidate Steiner points by their immediate gain;
+2. keep the best candidates;
+3. for each such candidate, estimate the best possible gain on the next step;
+4. choose the first point according to the combined two-step gain.
 
-2. Pruning:
+After the Steiner set is constructed, an additional local refinement step is applied:
+- each Steiner point is tested at alternative Hanan-grid positions;
+- a move is accepted if it reduces the total tree length.
 
-   * remove Steiner points with degree < 3
+Finally, Steiner points with degree < 3 are removed and the final MST is rebuilt.
 
-3. Final MST reconstruction
-
-
+---
 
 ## Notes
 

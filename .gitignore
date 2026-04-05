@@ -14,3 +14,5 @@ tmp/
 .env
 .env.local
 *.secret
+
+*_out.json

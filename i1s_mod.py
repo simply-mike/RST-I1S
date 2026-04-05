@@ -4,6 +4,10 @@ from mst import prim_mst, degrees_from_mst_edges
 from i1s_base import run_i1s_base
 
 
+def _next_node_id(nodes: list[Node]) -> int:
+    return max(n.id for n in nodes) + 1 if nodes else 1
+
+
 def _total_len(nodes: list[Node]) -> int:
     _, total = prim_mst(nodes)
     return total
@@ -51,6 +55,68 @@ def _prune_steiner_points(terminals: list[Node], steiners: list[Node]) -> list[N
     return current
 
 
+def _evaluate_candidates(terminals: list[Node], steiners: list[Node]) -> list[tuple[int, Node, int]]:
+    current_nodes = terminals + steiners
+    _, current_len = prim_mst(current_nodes)
+
+    candidates = hanan_candidates(current_nodes, _next_node_id(current_nodes))
+    scored = []
+
+    for cand in candidates:
+        trial_nodes = current_nodes + [cand]
+        _, trial_len = prim_mst(trial_nodes)
+        gain = current_len - trial_len
+        scored.append((gain, cand, trial_len))
+
+    scored.sort(key=lambda t: (-t[0], t[1].x, t[1].y, t[1].id))
+    return scored
+
+
+def _best_candidate_lookahead(
+    terminals: list[Node],
+    steiners: list[Node],
+    top_k: int = 5,
+) -> tuple[Node | None, int]:
+    scored = _evaluate_candidates(terminals, steiners)
+    if not scored:
+        return None, 0
+
+    top = [item for item in scored if item[0] > 0][:top_k]
+    if not top:
+        return None, 0
+
+    best_first = None
+    best_first_gain = 0
+    best_total_gain = -1
+
+    for first_gain, first_cand, _ in top:
+        trial_steiners = steiners + [first_cand]
+        trial_steiners = _prune_steiner_points(terminals, trial_steiners)
+
+        second_scored = _evaluate_candidates(terminals, trial_steiners)
+        second_gain = 0
+        for g, _, _ in second_scored:
+            if g > second_gain:
+                second_gain = g
+
+        total_gain = first_gain + second_gain
+
+        if total_gain > best_total_gain:
+            best_total_gain = total_gain
+            best_first = first_cand
+            best_first_gain = first_gain
+        elif total_gain == best_total_gain and best_first is not None:
+            if (first_gain > best_first_gain) or (
+                first_gain == best_first_gain and
+                (first_cand.x, first_cand.y, first_cand.id) <
+                (best_first.x, best_first.y, best_first.id)
+            ):
+                best_first = first_cand
+                best_first_gain = first_gain
+
+    return best_first, best_first_gain
+
+
 def _local_refine(nodes: list[Node]) -> list[Node]:
     terminals, steiners = _extract_steiners(nodes)
     if not steiners:
@@ -90,13 +156,22 @@ def _local_refine(nodes: list[Node]) -> list[Node]:
 
 
 def run_i1s_modified(terminals: list[Node]) -> tuple[list[Node], list[Edge], int]:
-    base_nodes, _, _ = run_i1s_base(terminals)
+    steiners: list[Node] = []
 
-    refined_nodes = _local_refine(base_nodes)
+    while True:
+        best, gain = _best_candidate_lookahead(terminals, steiners, top_k=5)
+        if best is None or gain <= 0:
+            break
+
+        steiners.append(best)
+        steiners = _prune_steiner_points(terminals, steiners)
+
+    nodes_after_lookahead = terminals + steiners
+    refined_nodes = _local_refine(nodes_after_lookahead)
+
     refined_terminals, refined_steiners = _extract_steiners(refined_nodes)
+    refined_steiners = _prune_steiner_points(refined_terminals, refined_steiners)
 
-    pruned_steiners = _prune_steiner_points(refined_terminals, refined_steiners)
-    final_nodes = refined_terminals + pruned_steiners
-
+    final_nodes = refined_terminals + refined_steiners
     edges, total = _rebuild_edges(final_nodes)
     return final_nodes, edges, total
